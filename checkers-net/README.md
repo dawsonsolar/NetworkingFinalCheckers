@@ -1,166 +1,115 @@
-# Networked Checkers | LEFT OVER FROM FIRST ITERATION! THIS IS ENTIRELY INACCURATE NOW!
+# Networked Checkers
 
-A turn-based multiplayer checkers game over TCP, demonstrating:
-- **Authoritative server** — all move validation happens server-side
-- **Session persistence** — clients get a session token and can reconnect mid-game
-- **Spectator mode** — additional clients can watch any active game
-- **Mandatory captures & multi-jump** — full standard English checkers rules
+A multiplayer checkers game using an authoritative C++ game server and a browser-based client. Two players connect through a web page and the server handles all game logic and move validation.
 
----
-
-## Requirements
-
-- Linux or macOS (uses POSIX sockets)
-- g++ with C++17 support (`g++ --version`)
-- `make`
-
-> **Windows:** Use WSL (Windows Subsystem for Linux) or MSYS2/MinGW.
-
----
-
-## Build
-
-```bash
-git clone <your-repo-url>
-cd checkers-net
-make
-```
-
-Produces two binaries: `checkers-server` and `checkers-client`.
-
----
-
-## Run
-
-### 1. Start the server
-
-```bash
-./checkers-server            # defaults to port 54000
-./checkers-server 8080       # custom port
-```
-
-### 2. Connect two clients (in separate terminals)
-
-```bash
-./checkers-client            # connects to localhost:54000
-./checkers-client 192.168.1.5 54000   # remote host + port
-```
-
-Each client is prompted for a name. The first two players to join a room are automatically matched. Further clients can join as **spectators**.
-
-### 3. Playing
-
-When it's your turn you'll see:
-
-```
-▶  YOUR TURN!
-Enter move (fromRow fromCol toRow toCol), or 'q' to quit:
-> 5 0 4 1
-```
-
-The board uses 0-indexed rows and columns (row 0 = top, row 7 = bottom).
-
-| Symbol | Meaning |
-|--------|---------|
-| `●`    | Player 1 piece |
-| `○`    | Player 2 piece |
-| `♛`    | King (either player) |
-
----
-
-## Reconnection
-
-If you disconnect, your **session ID** is printed on the waiting screen and again on disconnect. To rejoin:
-
-```bash
-./checkers-client
-# Enter name: Alice
-# Reconnect with session ID? (leave blank for new game): a1b2c3d4
-```
-
-The server holds your session open indefinitely; your opponent sees "Opponent disconnected" and waits.
-
----
-
-## Testing multiplayer locally
-
-```bash
-# Terminal 1
-./checkers-server
-
-# Terminal 2
-./checkers-client 127.0.0.1 54000
-
-# Terminal 3
-./checkers-client 127.0.0.1 54000
-
-# Terminal 4 (spectator)
-./checkers-client 127.0.0.1 54000
-# Answer 'n' to name and then type SPECTATE when prompted
-```
-
----
-
-## Protocol
-
-Messages are newline-terminated, pipe-delimited ASCII strings sent over TCP.
-
-| Direction | Message | Description |
-|-----------|---------|-------------|
-| C→S | `CONNECT\|name` | Initial connection |
-| C→S | `RECONNECT\|session_id` | Resume after disconnect |
-| C→S | `MOVE\|fr\|fc\|tr\|tc` | Submit a move |
-| C→S | `SPECTATE` | Join as observer |
-| S→C | `WELCOME\|sid\|pnum\|room` | Assigned session |
-| S→C | `START\|opponent` | Game beginning |
-| S→C | `STATE\|board64\|turn\|p1\|p2` | Full board state |
-| S→C | `YOUR_TURN` | Prompt for input |
-| S→C | `GAME_OVER\|winner\|reason` | Game ended |
-| S→C | `OPPONENT_DC` | Opponent disconnected |
-| S→C | `REJOINED\|pnum\|board64\|...` | Reconnection confirmed |
-
-The `board64` field is a 64-character string encoding all 8×8 cells left-to-right, top-to-bottom:
-`0`=empty, `1`=P1, `2`=P2, `3`=P1 King, `4`=P2 King.
+**Live demo:** https://networkingfinalcheckers.itch.io
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────┐   TCP/54000   ┌─────────────────────────┐   TCP/54000   ┌──────────────┐
-│   Client P1  │◄─────────────►│       GameServer        │◄─────────────►│   Client P2  │
-│              │               │  ┌──────────────────┐   │               │              │
-│  select() on │               │  │    GameRoom R1   │   │               │  select() on │
-│  sock+stdin  │               │  │  ┌────────────┐  │   │               │  sock+stdin  │
-└──────────────┘               │  │  │CheckersLogic│  │   │               └──────────────┘
-                               │  │  └────────────┘  │   │
-┌──────────────┐               │  │  sessions map    │   │
-│  Spectator   │◄─────────────►│  │  mutex-protected │   │
-│  (read-only) │               │  └──────────────────┘   │
-└──────────────┘               └─────────────────────────┘
+Browser (itch.io)
+    | WebSocket (WSS)
+Node.js bridge  <-- same Docker container
+    | TCP :54000
+C++ game server
+```
 
-Thread model: one thread per client connection (std::thread, detached)
-Room state:   protected by std::mutex inside GameRoom
-Sessions:     stored by ID for reconnection (never deleted during a game)
+The C++ server handles all game state and validates every move. The Node.js bridge translates between WebSocket (browser) and raw TCP (server). The browser client is a single HTML file.
+
+---
+
+## Running Locally
+
+### Requirements
+- Linux, macOS, or Windows with WSL
+- g++ with C++17, CMake, make
+- Node.js 20+
+
+### Build and run
+
+```bash
+# Build
+cd checkers-net
+mkdir build && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+
+# Terminal 1 - game server
+./build/checkers-server
+
+# Terminal 2 - web bridge
+cd web && npm install && node bridge.js
+
+# Open two browser tabs at http://localhost:8080
+```
+
+### Terminal client (optional)
+
+```bash
+./build/checkers-client 127.0.0.1 54000
+# Input: fromRow fromCol toRow toCol (e.g. "5 0 4 1")
 ```
 
 ---
 
-## Project structure
+## Deployment (Docker + Render)
+
+The `Dockerfile` builds the C++ server and bundles it with the Node bridge into a single container.
+
+```bash
+# Test locally
+docker build -t checkers-net .
+docker run -p 8080:8080 checkers-net
+```
+
+For cloud deployment, connect this repo to [Render.com](https://render.com), set root directory to `checkers-net`, and deploy. After deploying, update `web/index.html`:
+
+```javascript
+const WS_SERVER = 'wss://your-app-name.onrender.com';
+```
+
+---
+
+## Protocol
+
+Newline-terminated, pipe-delimited messages over TCP:
+
+| Direction | Message | Meaning |
+|-----------|---------|---------|
+| C → S | `CONNECT\|name` | Join as a new player |
+| C → S | `RECONNECT\|session_id` | Rejoin after disconnect |
+| C → S | `MOVE\|fr\|fc\|tr\|tc` | Submit a move |
+| S → C | `WELCOME\|sid\|pnum\|room` | Session assigned |
+| S → C | `STATE\|board64\|turn\|p1\|p2` | Board update |
+| S → C | `YOUR_TURN` / `WAIT_TURN` | Turn notification |
+| S → C | `GAME_OVER\|winner\|reason` | Game ended |
+| S → C | `OPPONENT_DC` | Opponent disconnected |
+
+`board64` is a 64-character string encoding the board: `0`=empty, `1`=P1, `2`=P2, `3`=P1 King, `4`=P2 King.
+
+---
+
+## File Structure
 
 ```
 checkers-net/
 ├── shared/
-│   ├── Protocol.h          # Wire format constants & helpers
-│   ├── CheckersLogic.h     # Game rules (header)
-│   └── CheckersLogic.cpp   # Game rules (implementation)
+│   ├── Protocol.h           # Message format constants and helpers
+│   ├── CheckersLogic.h/.cpp # Game rules (mandatory capture, multi-jump, kings)
 ├── server/
-│   ├── Session.h           # Per-client state struct
-│   ├── GameRoom.h/.cpp     # One active game (2 players + spectators)
-│   ├── GameServer.h/.cpp   # TCP listener, session manager, thread spawner
+│   ├── Session.h            # Per-client state (persists through disconnects)
+│   ├── GameRoom.h/.cpp      # One game instance, 2 players + spectators
+│   ├── GameServer.h/.cpp    # TCP listener, session manager, thread per client
 │   └── main.cpp
 ├── client/
-│   └── main.cpp            # Terminal UI with select()-based I/O
-├── Makefile
-└── README.md
+│   └── main.cpp             # Terminal client for local testing
+├── web/
+│   ├── bridge.js            # WebSocket <-> TCP bridge
+│   ├── index.html           # Browser client with protocol log
+│   └── package.json
+├── Dockerfile
+├── start.sh
+├── CMakeLists.txt
+└── Makefile
 ```
