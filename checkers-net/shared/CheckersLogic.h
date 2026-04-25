@@ -18,7 +18,8 @@ struct Move {
     int  capturedCol = -1;
 };
 
-struct GameState {
+struct GameState
+{
     Board board;
     int   currentPlayer = 1;
     bool  gameOver      = false;

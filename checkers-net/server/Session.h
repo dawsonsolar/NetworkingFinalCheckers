@@ -4,7 +4,8 @@
 #include <string>
 #include <atomic>
 
-struct Session {
+struct Session
+{
     std::string sessionId;
     std::string name;
     std::string roomId;

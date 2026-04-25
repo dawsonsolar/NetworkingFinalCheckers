@@ -2,7 +2,8 @@
 #include <iostream>
 #include <cstdlib>
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     int port = 54000;
     if (argc > 1) port = std::atoi(argv[1]);
 

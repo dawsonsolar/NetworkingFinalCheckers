@@ -30,7 +30,8 @@ namespace Protocol {
     static const std::string ERR         = "ERR";
 
     // Split a raw message on '|'
-    inline std::vector<std::string> split(const std::string& s) {
+    inline std::vector<std::string> split(const std::string& s)
+    {
         std::vector<std::string> tokens;
         std::stringstream ss(s);
         std::string token;
@@ -39,10 +40,12 @@ namespace Protocol {
     }
 
     // Build a pipe-delimited message with a trailing newline
-    inline std::string build(std::initializer_list<std::string> parts) {
+    inline std::string build(std::initializer_list<std::string> parts)
+    {
         std::string msg;
         bool first = true;
-        for (const auto& p : parts) {
+        for (const auto& p : parts)
+        {
             if (!first) msg += SEP;
             msg += p;
             first = false;
@@ -50,7 +53,8 @@ namespace Protocol {
         return msg + '\n';
     }
 
-    inline std::string build(const std::string& type) {
+    inline std::string build(const std::string& type)
+    {
         return type + '\n';
     }
 
