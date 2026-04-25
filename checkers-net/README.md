@@ -1,4 +1,4 @@
-# Networked Checkers
+# Networked Checkers | LEFT OVER FROM FIRST ITERATION! THIS IS ENTIRELY INACCURATE NOW!
 
 A turn-based multiplayer checkers game over TCP, demonstrating:
 - **Authoritative server** — all move validation happens server-side

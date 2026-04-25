@@ -4,11 +4,9 @@
 #include <cstring>
 #include <iostream>
 
-// ── Constructor ────────────────────────────────────────────────────────────
-
 GameRoom::GameRoom(std::string id) : roomId_(std::move(id)) {}
 
-// ── Client management ──────────────────────────────────────────────────────
+// Client management
 
 bool GameRoom::addPlayer(Session* s) {
     std::lock_guard<std::mutex> lk(mtx_);
@@ -56,7 +54,7 @@ void GameRoom::removeClient(Session* s) {
     }
 }
 
-// ── Move handling ──────────────────────────────────────────────────────────
+// Move handling
 
 bool GameRoom::onMove(Session* sender, int fr, int fc, int tr, int tc) {
     std::lock_guard<std::mutex> lk(mtx_);
@@ -105,7 +103,7 @@ bool GameRoom::onMove(Session* sender, int fr, int fc, int tr, int tc) {
     return true;
 }
 
-// ── State payload ──────────────────────────────────────────────────────────
+// State payload
 
 std::string GameRoom::statePayload() const {
     // board64|turn|p1name|p2name
@@ -117,13 +115,13 @@ std::string GameRoom::statePayload() const {
          + Protocol::SEP + p2name;
 }
 
-// ── Queries ────────────────────────────────────────────────────────────────
+// Queries
 
 bool GameRoom::isFull()    const { return players_[0] && players_[1]; }
 bool GameRoom::isStarted() const { return started_; }
 bool GameRoom::isEmpty()   const { return !players_[0] && !players_[1] && spectators_.empty(); }
 
-// ── Private helpers ────────────────────────────────────────────────────────
+// Private helpers
 
 void GameRoom::send(Session* s, const std::string& msg) {
     if (!s || s->fd < 0) return;

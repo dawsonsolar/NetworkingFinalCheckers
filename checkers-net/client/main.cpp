@@ -18,7 +18,7 @@
 #include <cstring>
 #include <cstdlib>
 
-// ── ANSI helpers ───────────────────────────────────────────────────────────
+// ANSI Helpers
 #define RESET   "\033[0m"
 #define BOLD    "\033[1m"
 #define RED     "\033[31m"
@@ -29,7 +29,7 @@
 #define BG_DARK "\033[48;5;238m"
 #define BG_LITE "\033[48;5;250m"
 
-// ── Client state ───────────────────────────────────────────────────────────
+// Client State
 struct ClientState {
     int         sock       = -1;
     int         playerNum  = 0;   // 1 or 2
@@ -48,7 +48,7 @@ struct ClientState {
     }
 };
 
-// ── Network helpers ────────────────────────────────────────────────────────
+// Network Helpers
 
 static void sendMsg(int sock, const std::string& msg) {
     send(sock, msg.c_str(), msg.size(), MSG_NOSIGNAL);
@@ -86,7 +86,7 @@ static int connectToServer(const std::string& host, int port) {
     return sock;
 }
 
-// ── Board rendering ────────────────────────────────────────────────────────
+// Board Rendering
 
 static void clearScreen() {
     std::cout << "\033[2J\033[H";
@@ -95,7 +95,7 @@ static void clearScreen() {
 static void drawBoard(const ClientState& cs) {
     clearScreen();
 
-    // Header
+    // Header (this sucked, I used AI for the UNICODE stuff since I couldn't find it anywhere else. That's all.)
     std::cout << BOLD CYAN
               << "╔══════════════════════════════════════════════╗\n"
               << "║         NETWORKED CHECKERS  v1.0             ║\n"
@@ -159,7 +159,7 @@ static void drawBoard(const ClientState& cs) {
     }
 }
 
-// ── Server message handler ─────────────────────────────────────────────────
+// Server message handler
 
 static void processServerMessage(const std::string& line, ClientState& cs) {
     if (line.empty()) return;
@@ -238,7 +238,7 @@ static void processServerMessage(const std::string& line, ClientState& cs) {
     }
 }
 
-// ── Input handler ──────────────────────────────────────────────────────────
+// Input handler
 
 static void processInput(const std::string& line, ClientState& cs) {
     if (line == "q" || line == "quit") {
@@ -267,7 +267,7 @@ static void processInput(const std::string& line, ClientState& cs) {
     cs.myTurn = false;
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────
+// Main
 
 int main(int argc, char* argv[]) {
     std::string host = "127.0.0.1";
@@ -301,7 +301,7 @@ int main(int argc, char* argv[]) {
         sendMsg(sock, Protocol::build({Protocol::RECONNECT, existingSession}));
     }
 
-    // ── Event loop ─────────────────────────────────────────────────────────
+    // Event loop
     // Uses select() to watch both the socket and stdin simultaneously,
     // so neither blocks the other.
 
@@ -319,7 +319,7 @@ int main(int argc, char* argv[]) {
         int ret   = select(maxFd, &readfds, nullptr, nullptr, nullptr);
         if (ret < 0) { perror("select"); break; }
 
-        // ── Data from server ───────────────────────────────────────────────
+        // Data from server
         if (FD_ISSET(sock, &readfds)) {
             std::string line = readLine(sock);
             if (line.empty()) {
@@ -333,7 +333,7 @@ int main(int argc, char* argv[]) {
             processServerMessage(line, cs);
         }
 
-        // ── Data from stdin ────────────────────────────────────────────────
+        // Data from stdin
         if (cs.myTurn && !cs.gameOver && FD_ISSET(STDIN_FILENO, &readfds)) {
             std::string line;
             if (!std::getline(std::cin, line)) break;

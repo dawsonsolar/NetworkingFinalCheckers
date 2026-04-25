@@ -12,8 +12,6 @@
 #include <algorithm>
 #include <cstring>
 
-// ── Constructor / run ──────────────────────────────────────────────────────
-
 GameServer::GameServer(int port) : port_(port) {}
 
 void GameServer::run() {
@@ -50,7 +48,7 @@ void GameServer::run() {
     }
 }
 
-// ── Per-client thread ──────────────────────────────────────────────────────
+// Per-client thread
 
 void GameServer::handleClient(int fd) {
     // First message must be CONNECT or RECONNECT
@@ -101,7 +99,7 @@ void GameServer::handleClient(int fd) {
     onDisconnect(session);
 }
 
-// ── Message handlers ───────────────────────────────────────────────────────
+// Message handlers
 
 void GameServer::onConnect(int fd, const std::vector<std::string>& parts) {
     std::string name = (parts.size() > 1 && !parts[1].empty())
@@ -230,7 +228,7 @@ void GameServer::onDisconnect(Session* s) {
     if (room) room->removeClient(s);
 }
 
-// ── Room helpers ───────────────────────────────────────────────────────────
+// Room helpers
 
 GameRoom* GameServer::findOrCreateRoom() {
     std::lock_guard<std::mutex> lk(roomsMtx_);
@@ -253,7 +251,7 @@ GameRoom* GameServer::roomById(const std::string& id) {
     return (it != rooms_.end()) ? it->second.get() : nullptr;
 }
 
-// ── Utility ────────────────────────────────────────────────────────────────
+// Utility
 
 std::string GameServer::makeSessionId() {
     static std::random_device rd;

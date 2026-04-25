@@ -5,6 +5,7 @@
 // to its own TCP connection to the C++ game server.
 // Each browser tab = one TCP connection to the game server.
 // Messages pass through unchanged — the protocol is identical.
+// Github Reference for this file: https://github.com/getbridge/bridge-js
 // =============================================================================
 
 const http    = require('http');
@@ -17,7 +18,7 @@ const HTTP_PORT        = process.env.PORT       || 8080;
 const GAME_SERVER_HOST = process.env.GAME_HOST  || '127.0.0.1';
 const GAME_SERVER_PORT = process.env.GAME_PORT  || 54000;
 
-// ── HTTP server (serves index.html) ───────────────────────────────────────
+// HTTP server (serves index.html)
 const httpServer = http.createServer((req, res) => {
     const file = path.join(__dirname, 'index.html');
     fs.readFile(file, (err, data) => {
@@ -31,7 +32,7 @@ const httpServer = http.createServer((req, res) => {
     });
 });
 
-// ── WebSocket server ───────────────────────────────────────────────────────
+// WebSocket server
 const wss = new WebSocket.Server({ server: httpServer });
 
 wss.on('connection', (ws, req) => {
@@ -48,7 +49,7 @@ wss.on('connection', (ws, req) => {
         console.log(`[Bridge] TCP connection opened to game server for ${clientIp}`);
     });
 
-    // ── TCP → WebSocket ────────────────────────────────────────────────────
+    // TCP → WebSocket
     // The C++ server sends newline-terminated messages.
     // Buffer partial reads and forward complete lines to the browser.
     tcp.on('data', (data) => {
@@ -76,7 +77,7 @@ wss.on('connection', (ws, req) => {
         }
     });
 
-    // ── WebSocket → TCP ────────────────────────────────────────────────────
+    // WebSocket → TCP
     // Browser sends pipe-delimited messages without \n; add it for the server.
     ws.on('message', (msg) => {
         const str = msg.toString().trim();
@@ -96,7 +97,7 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-// ── Start ──────────────────────────────────────────────────────────────────
+// Start
 httpServer.listen(HTTP_PORT, () => {
     console.log('=== Networked Checkers Web Bridge ===');
     console.log(`Open in browser: http://localhost:${HTTP_PORT}`);

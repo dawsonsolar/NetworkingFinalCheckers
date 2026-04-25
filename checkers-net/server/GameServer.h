@@ -22,26 +22,26 @@ public:
     void run();   // Blocks forever (call from main)
 
 private:
-    // ── Client thread entry point ──────────────────────────────────────────
+    // Client thread entry point
     void handleClient(int fd);
 
-    // ── Message handlers ───────────────────────────────────────────────────
+    // Message handlers
     void onConnect   (int fd, const std::vector<std::string>& parts);
     void onReconnect (int fd, const std::vector<std::string>& parts);
     void onMove      (Session* s, const std::vector<std::string>& parts);
     void onSpectate  (Session* s);
     void onDisconnect(Session* s);
 
-    // ── Room helpers ───────────────────────────────────────────────────────
+    // Room helpers
     GameRoom* findOrCreateRoom();   // Returns a room that needs a player
     GameRoom* roomById(const std::string& id);
 
-    // ── Utility ────────────────────────────────────────────────────────────
+    // Utility
     static std::string makeSessionId();
     static void sendTo(int fd, const std::string& msg);
     static std::string readLine(int fd);
 
-    // ── State ──────────────────────────────────────────────────────────────
+    // State
     int port_;
     int listenFd_ = -1;
 
