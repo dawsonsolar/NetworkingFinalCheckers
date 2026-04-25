@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: checkers-net
+    runtime: docker
+    plan: free
+    envVars:
+      - key: GAME_PORT
+        value: "54000"
+      # PORT is set automatically by Render
