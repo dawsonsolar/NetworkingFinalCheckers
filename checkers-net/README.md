@@ -2,7 +2,7 @@
 
 A multiplayer checkers game using an authoritative C++ game server and a browser-based client. Two players connect through a web page and the server handles all game logic and move validation.
 
-**Live demo:** https://networkingfinalcheckers.itch.io
+**Live demo:** https://solar722.itch.io/networking-final-checkers
 
 ---
 

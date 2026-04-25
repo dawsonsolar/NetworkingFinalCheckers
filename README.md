@@ -4,7 +4,7 @@ Final project for CSI-275 / GPR-430 Networking at Champlain College.
 
 A turn-based multiplayer checkers game built in C++ with a browser-based client. Demonstrates authoritative server architecture, custom TCP protocol design, session persistence, and WebSocket bridging.
 
-**Play it here:** https://networkingfinalcheckers.itch.io
+**Play it here:** https://solar722.itch.io/networking-final-checkers
 
 ---
 
