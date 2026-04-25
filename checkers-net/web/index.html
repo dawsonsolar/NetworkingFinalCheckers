@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Networked Checkers</title>
+<style>
+  /* ── Reset & base ─────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #0d1117;
+    --surface:    #161b22;
+    --border:     #30363d;
+    --text:       #e6edf3;
+    --muted:      #8b949e;
+    --green:      #3fb950;
+    --green-dim:  #196127;
+    --red:        #f85149;
+    --red-dim:    #6e2a28;
+    --yellow:     #e3b341;
+    --blue:       #58a6ff;
+    --sq-dark:    #5c3d2e;
+    --sq-light:   #c4a882;
+    --sq-hover:   rgba(255,255,255,0.12);
+    --sq-valid:   rgba(90,200,90,0.35);
+    --sq-selected:rgba(255,220,0,0.4);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── Modal (name entry) ───────────────────────────────────────────── */
+  #modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem 2.5rem;
+    width: min(420px, 90vw);
+    display: flex; flex-direction: column; gap: 1.2rem;
+  }
+  #modal h2 { font-size: 1.4rem; color: var(--green); }
+  #modal p  { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+  #modal input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 1rem;
+    padding: 0.6rem 0.8rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #modal input:focus { border-color: var(--blue); }
+  #modal button {
+    background: var(--green);
+    border: none; border-radius: 6px;
+    color: #000; font-size: 1rem; font-weight: 600;
+    padding: 0.65rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #modal button:hover { background: #56d364; }
+
+  /* ── Header ───────────────────────────────────────────────────────── */
+  header {
+    width: 100%; max-width: 720px;
+    padding: 1.2rem 1rem 0.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.5rem;
+  }
+  header h1 { font-size: 1.3rem; color: var(--green); letter-spacing: 0.05em; }
+  #session-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    display: none;
+  }
+  #session-box span { color: var(--yellow); font-weight: 600; font-family: monospace; }
+
+  /* ── Player info bar ──────────────────────────────────────────────── */
+  #player-bar {
+    width: 100%; max-width: 720px;
+    padding: 0.4rem 1rem;
+    display: flex; justify-content: space-between;
+    font-size: 0.88rem; color: var(--muted);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #player-bar.visible { opacity: 1; }
+  .player-tag { display: flex; align-items: center; gap: 0.5rem; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.p1 { background: var(--green); }
+  .dot.p2 { background: var(--red); }
+  .player-tag.active { color: var(--text); font-weight: 600; }
+
+  /* ── Board wrapper ────────────────────────────────────────────────── */
+  #board-wrap {
+    padding: 0.5rem 1rem 1rem;
+    width: 100%; max-width: 720px;
+    display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+  }
+
+  /* Column labels */
+  #col-labels {
+    display: grid;
+    grid-template-columns: 24px repeat(8, 1fr);
+    width: min(560px, 90vw);
+    color: var(--muted); font-size: 0.75rem; text-align: center;
+  }
+
+  /* Board row (row label + 8 cells) */
+  .board-row {
+    display: grid;
+    grid-template-columns: 24px repeat(8, 1fr);
+    width: min(560px, 90vw);
+  }
+  .row-label {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 0.75rem;
+  }
+
+  /* Individual cell */
+  .cell {
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    transition: background 0.15s;
+  }
+  .cell.dark  { background: var(--sq-dark); }
+  .cell.light { background: var(--sq-light); }
+  .cell.dark.valid-move  { background: var(--sq-valid);    cursor: pointer; }
+  .cell.dark.selected-sq { background: var(--sq-selected); }
+  .cell.dark:hover:not(.light) { filter: brightness(1.15); }
+
+  /* Valid move dot indicator */
+  .cell.valid-move::after {
+    content: '';
+    position: absolute;
+    width: 30%; height: 30%;
+    border-radius: 50%;
+    background: rgba(80,220,80,0.7);
+    pointer-events: none;
+  }
+
+  /* ── Pieces ───────────────────────────────────────────────────────── */
+  .piece {
+    width: 76%; height: 76%;
+    border-radius: 50%;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1em;
+    user-select: none;
+  }
+  .piece:hover { transform: scale(1.07); }
+
+  .piece.p1 {
+    background: radial-gradient(circle at 35% 30%, #7eff7e, #228b22);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .piece.p2 {
+    background: radial-gradient(circle at 35% 30%, #ff8080, #8b0000);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .piece.selected {
+    box-shadow: 0 0 0 3px var(--yellow), 0 3px 8px rgba(0,0,0,0.5);
+    transform: scale(1.1);
+  }
+  .piece.king::after {
+    content: '♛';
+    position: absolute;
+    font-size: 0.55em;
+    color: rgba(255,255,255,0.85);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+
+  /* ── Status bar ───────────────────────────────────────────────────── */
+  #status-bar {
+    width: 100%; max-width: 720px;
+    margin: 0 1rem;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.3s;
+    min-height: 2.8rem;
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  }
+  #status-bar.info    { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+  #status-bar.your-turn { background: #0d2818; border: 1px solid var(--green); color: var(--green); }
+  #status-bar.wait    { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+  #status-bar.error   { background: #2d0f0f; border: 1px solid var(--red); color: var(--red); }
+  #status-bar.success { background: #0d2818; border: 1px solid var(--green); color: var(--green); }
+  #status-bar.gameover{ background: #1c1400; border: 1px solid var(--yellow); color: var(--yellow); font-size: 1.1rem; }
+
+  /* ── Score / piece count ──────────────────────────────────────────── */
+  #score-bar {
+    width: 100%; max-width: 720px;
+    padding: 0.3rem 1rem;
+    display: flex; justify-content: space-between;
+    font-size: 0.82rem; color: var(--muted);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #score-bar.visible { opacity: 1; }
+
+  /* ── Reconnect hint ───────────────────────────────────────────────── */
+  #reconnect-hint {
+    width: 100%; max-width: 720px;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--muted);
+    display: none;
+  }
+  #reconnect-hint a { color: var(--blue); cursor: pointer; }
+
+  /* ── Connecting spinner ───────────────────────────────────────────── */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ── Name / reconnect modal ─────────────────────────────────────────── -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h2>♟ Networked Checkers</h2>
+    <p>Enter your name to join or reconnect to a game in progress.</p>
+    <input id="name-input"    type="text" placeholder="Your name"              maxlength="20" autocomplete="off">
+    <input id="session-input" type="text" placeholder="Session ID (optional — to reconnect)" maxlength="16" autocomplete="off" style="font-family:monospace">
+    <button id="join-btn">Join Game</button>
+  </div>
+</div>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<header>
+  <h1>♟ Networked Checkers</h1>
+  <div id="session-box">Session: <span id="session-id-display"></span></div>
+</header>
+
+<!-- ── Player bar ─────────────────────────────────────────────────────── -->
+<div id="player-bar">
+  <div class="player-tag" id="p1-tag"><div class="dot p1"></div><span id="p1-name">P1</span></div>
+  <div class="player-tag" id="p2-tag"><div class="dot p2"></div><span id="p2-name">P2</span></div>
+</div>
+
+<!-- ── Board ──────────────────────────────────────────────────────────── -->
+<div id="board-wrap">
+  <div id="col-labels">
+    <div></div>
+    <div>0</div><div>1</div><div>2</div><div>3</div>
+    <div>4</div><div>5</div><div>6</div><div>7</div>
+  </div>
+  <div id="board"></div>
+</div>
+
+<!-- ── Score bar ──────────────────────────────────────────────────────── -->
+<div id="score-bar">
+  <span id="p1-count"></span>
+  <span id="p2-count"></span>
+</div>
+
+<!-- ── Status ─────────────────────────────────────────────────────────── -->
+<div id="status-bar" class="info"><span class="spinner"></span> Connecting...</div>
+
+<!-- ── Reconnect hint ─────────────────────────────────────────────────── -->
+<div id="reconnect-hint">
+  Disconnected. <a onclick="showReconnectPrompt()">Click here to reconnect</a> with your session ID.
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════════════════
+const state = {
+  ws:           null,
+  playerNum:    0,
+  sessionId:    '',
+  roomId:       '',
+  myName:       '',
+  p1Name:       '',
+  p2Name:       '',
+  board:        Array.from({length:8}, () => new Array(8).fill(0)),
+  currentTurn:  1,
+  myTurn:       false,
+  gameOver:     false,
+  selectedRow:  -1,
+  selectedCol:  -1,
+  validDests:   [],   // [{row, col}] for highlighted destinations
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Modal
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('join-btn').onclick = joinGame;
+document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
+document.getElementById('session-input').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
+
+function joinGame() {
+  const name    = document.getElementById('name-input').value.trim() || 'Player';
+  const session = document.getElementById('session-input').value.trim();
+  document.getElementById('modal-overlay').style.display = 'none';
+  state.myName = name;
+  connect(name, session);
+}
+
+function showReconnectPrompt() {
+  document.getElementById('session-input').value = state.sessionId;
+  document.getElementById('modal-overlay').style.display = 'flex';
+  document.getElementById('reconnect-hint').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WebSocket
+// ═══════════════════════════════════════════════════════════════════════════
+function connect(name, existingSession) {
+  const wsUrl = `ws://${location.host}`;
+  state.ws = new WebSocket(wsUrl);
+
+  state.ws.onopen = () => {
+    setStatus('info', '⟳ Connected — joining game...');
+    if (existingSession) {
+      send(`RECONNECT|${existingSession}`);
+    } else {
+      send(`CONNECT|${name}`);
+    }
+  };
+
+  state.ws.onmessage = (evt) => handleMessage(evt.data);
+
+  state.ws.onclose = () => {
+    setStatus('error', '⚠ Disconnected from server');
+    document.getElementById('reconnect-hint').style.display = 'block';
+  };
+
+  state.ws.onerror = () => {
+    setStatus('error', '✕ Could not reach the game server. Is it running?');
+  };
+}
+
+function send(msg) {
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+    state.ws.send(msg);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Protocol handlers
+// ═══════════════════════════════════════════════════════════════════════════
+function handleMessage(raw) {
+  const parts = raw.split('|');
+  const type  = parts[0];
+
+  switch (type) {
+    case 'WELCOME':
+      // WELCOME|session_id|player_num|room_id
+      state.sessionId = parts[1];
+      state.playerNum = parseInt(parts[2]);
+      state.roomId    = parts[3];
+      document.getElementById('session-id-display').textContent = state.sessionId;
+      document.getElementById('session-box').style.display = 'block';
+      setStatus('info', `You are Player ${state.playerNum} — Session: ${state.sessionId}`);
+      break;
+
+    case 'WAITING':
+      setStatus('info', '⏳ Waiting for an opponent...');
+      break;
+
+    case 'START':
+      // START|opponent_name
+      setStatus('success', `▶ Game started vs ${parts[1]}!`);
+      document.getElementById('player-bar').classList.add('visible');
+      document.getElementById('score-bar').classList.add('visible');
+      break;
+
+    case 'STATE':
+      // STATE|board64|turn|p1name|p2name
+      applyState(parts[1], parseInt(parts[2]), parts[3], parts[4]);
+      break;
+
+    case 'YOUR_TURN':
+      state.myTurn = true;
+      clearSelection();
+      setStatus('your-turn', '▶ Your turn — click a piece to move');
+      break;
+
+    case 'WAIT_TURN': {
+      state.myTurn = false;
+      clearSelection();
+      const oppName = state.playerNum === 1 ? state.p2Name : state.p1Name;
+      setStatus('wait', `⏳ Waiting for ${oppName}...`);
+      break;
+    }
+
+    case 'GAME_OVER':
+      // GAME_OVER|winner_num|reason
+      state.gameOver = true;
+      state.myTurn   = false;
+      clearSelection();
+      renderBoard();
+      const won = parseInt(parts[1]) === state.playerNum;
+      setStatus('gameover', won ? `🏆 You win! ${parts[2]}` : `☁ ${parts[2]}`);
+      break;
+
+    case 'OPPONENT_DC':
+      setStatus('error', '⚠ Opponent disconnected — waiting for them to return...');
+      break;
+
+    case 'REJOINED':
+      // REJOINED|player_num|board64|turn|p1name|p2name
+      state.playerNum = parseInt(parts[1]);
+      if (parts[2] && parts[2].length === 64) {
+        applyState(parts[2], parseInt(parts[3]), parts[4], parts[5]);
+      }
+      document.getElementById('player-bar').classList.add('visible');
+      document.getElementById('score-bar').classList.add('visible');
+      setStatus('success', `↩ Reconnected as Player ${state.playerNum}`);
+      break;
+
+    case 'ERR':
+      setStatus('error', `✕ ${parts[1] || 'Error'}`);
+      // Clear selection so they can try again
+      clearSelection();
+      renderBoard();
+      break;
+
+    case 'MSG':
+      setStatus('info', parts[1] || '');
+      break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Board state
+// ═══════════════════════════════════════════════════════════════════════════
+function applyState(board64, turn, p1name, p2name) {
+  // Parse 64-char board string
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++)
+      state.board[r][c] = parseInt(board64[r * 8 + c]);
+
+  state.currentTurn = turn;
+  state.p1Name = p1name || 'P1';
+  state.p2Name = p2name || 'P2';
+
+  // Update name labels
+  document.getElementById('p1-name').textContent = state.p1Name;
+  document.getElementById('p2-name').textContent = state.p2Name;
+
+  // Piece counts
+  let p1c = 0, p2c = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const v = state.board[r][c];
+      if (v === 1 || v === 3) p1c++;
+      if (v === 2 || v === 4) p2c++;
+    }
+  document.getElementById('p1-count').textContent = `${state.p1Name}: ${p1c} piece${p1c!==1?'s':''}`;
+  document.getElementById('p2-count').textContent = `${state.p2Name}: ${p2c} piece${p2c!==1?'s':''}`;
+
+  // Highlight active player
+  document.getElementById('p1-tag').classList.toggle('active', turn === 1);
+  document.getElementById('p2-tag').classList.toggle('active', turn === 2);
+
+  clearSelection();
+  renderBoard();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Client-side move preview (for highlighting valid destinations)
+// Server is authoritative — this is UX only
+// ═══════════════════════════════════════════════════════════════════════════
+function getMovesForPiece(row, col) {
+  const cell = state.board[row][col];
+  if (!cell) return [];
+
+  const isP1Piece = cell === 1 || cell === 3;
+  const isKing    = cell === 3 || cell === 4;
+  const player    = isP1Piece ? 1 : 2;
+
+  // Row directions this piece can move
+  const dirs = isKing ? [-1, 1] : (player === 1 ? [-1] : [1]);
+
+  const moves = [];
+  const captures = [];
+
+  for (const dr of dirs) {
+    for (const dc of [-1, 1]) {
+      const nr = row + dr, nc = col + dc;
+      if (nr < 0 || nr > 7 || nc < 0 || nc > 7) continue;
+      const target = state.board[nr][nc];
+
+      if (target === 0) {
+        // Regular move
+        moves.push({row: nr, col: nc});
+      } else {
+        // Check capture
+        const isOpponent = player === 1 ? (target === 2 || target === 4) : (target === 1 || target === 3);
+        if (isOpponent) {
+          const lr = row + 2*dr, lc = col + 2*dc;
+          if (lr >= 0 && lr < 8 && lc >= 0 && lc < 8 && state.board[lr][lc] === 0) {
+            captures.push({row: lr, col: lc});
+          }
+        }
+      }
+    }
+  }
+
+  // Mandatory capture rule — if any captures available, only show captures
+  return captures.length > 0 ? captures : moves;
+}
+
+// Check if any capture exists for current player (mandatory capture enforcement)
+function anyCapture() {
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const cell = state.board[r][c];
+      const mine = state.playerNum === 1 ? (cell===1||cell===3) : (cell===2||cell===4);
+      if (!mine) continue;
+      const dirs = (cell===3||cell===4) ? [-1,1] : (state.playerNum===1?[-1]:[1]);
+      for (const dr of dirs) for (const dc of [-1,1]) {
+        const mr=r+dr, mc=c+dc, lr=r+2*dr, lc=c+2*dc;
+        if (lr<0||lr>7||lc<0||lc>7) continue;
+        const mid = state.board[mr][mc];
+        const isOpp = state.playerNum===1?(mid===2||mid===4):(mid===1||mid===3);
+        if (isOpp && state.board[lr][lc]===0) return true;
+      }
+    }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Board rendering
+// ═══════════════════════════════════════════════════════════════════════════
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+
+  const validDestSet = new Set(state.validDests.map(d => `${d.row},${d.col}`));
+
+  for (let r = 0; r < 8; r++) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'board-row';
+
+    // Row label
+    const lbl = document.createElement('div');
+    lbl.className = 'row-label';
+    lbl.textContent = r;
+    rowEl.appendChild(lbl);
+
+    for (let c = 0; c < 8; c++) {
+      const cell = document.createElement('div');
+      const dark = (r + c) % 2 === 0;
+      cell.className = 'cell ' + (dark ? 'dark' : 'light');
+
+      const isSelected  = state.selectedRow === r && state.selectedCol === c;
+      const isValidDest = validDestSet.has(`${r},${c}`);
+
+      if (isSelected)  cell.classList.add('selected-sq');
+      if (isValidDest) cell.classList.add('valid-move');
+
+      const val = state.board[r][c];
+      if (val !== 0) {
+        const piece = document.createElement('div');
+        const isP1  = val === 1 || val === 3;
+        piece.className = 'piece ' + (isP1 ? 'p1' : 'p2');
+        if (val === 3 || val === 4) piece.classList.add('king');
+        if (isSelected) piece.classList.add('selected');
+        piece.onclick = (e) => { e.stopPropagation(); onPieceClick(r, c); };
+        cell.appendChild(piece);
+      }
+
+      // Clicking a valid destination cell
+      if (isValidDest) {
+        cell.onclick = () => onDestClick(r, c);
+      }
+
+      rowEl.appendChild(cell);
+    }
+    boardEl.appendChild(rowEl);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Click handlers
+// ═══════════════════════════════════════════════════════════════════════════
+function onPieceClick(row, col) {
+  if (!state.myTurn || state.gameOver) return;
+
+  const cell    = state.board[row][col];
+  const isMyP1  = state.playerNum === 1 && (cell === 1 || cell === 3);
+  const isMyP2  = state.playerNum === 2 && (cell === 2 || cell === 4);
+  const isMine  = isMyP1 || isMyP2;
+
+  // If clicking a valid destination that also has a piece (shouldn't happen in checkers, but guard)
+  const destKey = `${row},${col}`;
+  const isValidDest = state.validDests.some(d => d.row===row && d.col===col);
+  if (isValidDest && state.selectedRow >= 0) {
+    onDestClick(row, col);
+    return;
+  }
+
+  if (!isMine) {
+    setStatus('error', "That's not your piece!");
+    setTimeout(() => setStatus('your-turn', '▶ Your turn — click a piece to move'), 1500);
+    return;
+  }
+
+  // Select this piece and show valid moves
+  state.selectedRow = row;
+  state.selectedCol = col;
+
+  let dests = getMovesForPiece(row, col);
+
+  // If there are mandatory captures, filter to only capture moves
+  if (anyCapture()) {
+    const captures = dests.filter(d => {
+      // A destination is a capture if it's 2 squares away
+      return Math.abs(d.row - row) === 2;
+    });
+    if (captures.length > 0) dests = captures;
+    else dests = []; // This piece can't capture — shouldn't be selected
+  }
+
+  state.validDests = dests;
+  renderBoard();
+
+  if (dests.length === 0) {
+    setStatus('error', 'No valid moves for that piece');
+    setTimeout(() => setStatus('your-turn', '▶ Your turn — click a piece to move'), 1500);
+  }
+}
+
+function onDestClick(row, col) {
+  if (state.selectedRow < 0 || !state.myTurn) return;
+
+  const fr = state.selectedRow, fc = state.selectedCol;
+  send(`MOVE|${fr}|${fc}|${row}|${col}`);
+  setStatus('wait', '⟳ Move sent...');
+  clearSelection();
+  renderBoard();
+}
+
+function clearSelection() {
+  state.selectedRow = -1;
+  state.selectedCol = -1;
+  state.validDests  = [];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UI helpers
+// ═══════════════════════════════════════════════════════════════════════════
+function setStatus(type, msg) {
+  const el = document.getElementById('status-bar');
+  el.className = 'status-bar ' + type;
+  el.innerHTML = msg;
+}
+
+// Initial empty board render
+renderBoard();
+</script>
+</body>
+</html>

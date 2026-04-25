@@ -1,0 +1,12 @@
+{
+  "name": "checkers-web-bridge",
+  "version": "1.0.0",
+  "description": "WebSocket bridge for Networked Checkers",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
