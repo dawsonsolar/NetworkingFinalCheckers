@@ -1,26 +1,6 @@
 #pragma once
-// =============================================================================
-// Protocol.h  —  Newline-terminated, pipe-delimited text messages
-// =============================================================================
-// Client → Server:
-//   CONNECT|name
-//   RECONNECT|session_id
-//   MOVE|fromRow|fromCol|toRow|toCol
-//   SPECTATE                        (join next available room as observer)
-//
-// Server → Client:
-//   WELCOME|session_id|player_num|room_id
-//   WAITING                         (no opponent yet)
-//   START|opponent_name
-//   STATE|board64|turn|p1name|p2name
-//   YOUR_TURN
-//   WAIT_TURN
-//   GAME_OVER|winner_num|reason
-//   OPPONENT_DC
-//   REJOINED|player_num|board64|turn|p1name|p2name
-//   MSG|text
-//   ERR|reason
-// =============================================================================
+// Newline-terminated, pipe-delimited messages sent over TCP.
+// e.g. "MOVE|5|0|4|1\n" or "STATE|board64|turn|p1|p2\n"
 
 #include <string>
 #include <vector>
@@ -30,14 +10,13 @@ namespace Protocol {
 
     static const char SEP = '|';
 
-    // ── Message type constants ─────────────────────────────────────────────
-    // Client → Server
+    // Client -> Server
     static const std::string CONNECT     = "CONNECT";
     static const std::string RECONNECT   = "RECONNECT";
     static const std::string MOVE        = "MOVE";
     static const std::string SPECTATE    = "SPECTATE";
 
-    // Server → Client
+    // Server -> Client
     static const std::string WELCOME     = "WELCOME";
     static const std::string WAITING     = "WAITING";
     static const std::string START       = "START";
@@ -50,20 +29,16 @@ namespace Protocol {
     static const std::string MSG         = "MSG";
     static const std::string ERR         = "ERR";
 
-    // ── Helpers ───────────────────────────────────────────────────────────
-
-    // Split a raw message string on '|'
+    // Split a raw message on '|'
     inline std::vector<std::string> split(const std::string& s) {
         std::vector<std::string> tokens;
         std::stringstream ss(s);
         std::string token;
-        while (std::getline(ss, token, SEP)) {
-            tokens.push_back(token);
-        }
+        while (std::getline(ss, token, SEP)) tokens.push_back(token);
         return tokens;
     }
 
-    // Build a message from parts, appending '\n'
+    // Build a pipe-delimited message with a trailing newline
     inline std::string build(std::initializer_list<std::string> parts) {
         std::string msg;
         bool first = true;
@@ -72,11 +47,9 @@ namespace Protocol {
             msg += p;
             first = false;
         }
-        msg += '\n';
-        return msg;
+        return msg + '\n';
     }
 
-    // Convenience: build a no-arg message
     inline std::string build(const std::string& type) {
         return type + '\n';
     }
