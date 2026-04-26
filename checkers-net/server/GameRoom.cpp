@@ -178,3 +178,22 @@ void GameRoom::startGame()
     send(players_[0], Protocol::build(Protocol::YOUR_TURN));
     send(players_[1], Protocol::build(Protocol::WAIT_TURN));
 }
+
+// After a player reconnects, notify their opponent and resend turn
+// state to both players so the game can resume.
+void GameRoom::notifyReconnect(Session* s)
+{
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (!started_ || state_.gameOver) return;
+
+    int oppIdx = (s->playerNum == 1) ? 1 : 0;
+    if (players_[oppIdx] && players_[oppIdx]->fd >= 0)
+        send(players_[oppIdx], Protocol::build({Protocol::MSG, s->name + " reconnected"}));
+
+    for (int i = 0; i < 2; i++)
+    {
+        if (!players_[i] || players_[i]->fd < 0) continue;
+        bool myTurn = (state_.currentPlayer == i + 1);
+        send(players_[i], Protocol::build(myTurn ? Protocol::YOUR_TURN : Protocol::WAIT_TURN));
+    }
+}

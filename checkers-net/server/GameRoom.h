@@ -26,6 +26,7 @@ public:
     bool isFull()     const;   // both player slots taken
     bool isStarted()  const;   // game has begun
     bool isEmpty()    const;   // no players remaining
+    void notifyReconnect(Session* s); // notify opponent + resend turn state
 
     // Formatted state string (board64|turn|p1name|p2name)
     std::string statePayload() const;
