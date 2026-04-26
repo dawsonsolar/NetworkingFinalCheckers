@@ -54,7 +54,8 @@ void GameRoom::removeClient(Session* s)
         {
             players_[i] = nullptr;
             int oppIdx  = 1 - i;
-            if (started_ && players_[oppIdx] && players_[oppIdx]->fd >= 0) {
+            if (started_ && players_[oppIdx] && players_[oppIdx]->fd >= 0)
+            {
                 send(players_[oppIdx],
                      Protocol::build(Protocol::OPPONENT_DC));
             }
@@ -81,7 +82,8 @@ bool GameRoom::onMove(Session* sender, int fr, int fc, int tr, int tc)
     bool found = false;
     for (const auto& v : legal)
     {
-        if (v.fromRow == fr && v.fromCol == fc && v.toRow == tr && v.toCol == tc) {
+        if (v.fromRow == fr && v.fromCol == fc && v.toRow == tr && v.toCol == tc)
+        {
             m = v;   // Use validated move with capture fields filled in
             found = true;
             break;
@@ -103,7 +105,8 @@ bool GameRoom::onMove(Session* sender, int fr, int fc, int tr, int tc)
         broadcastAll(Protocol::build({Protocol::GAME_OVER,
                                       std::to_string(state_.winner),
                                       winner + " wins!"}));
-    } else {
+    } else
+    {
         // Tell each player whether it is their turn
         for (int i = 0; i < 2; i++)
         {
@@ -186,7 +189,12 @@ void GameRoom::notifyReconnect(Session* s)
     std::lock_guard<std::mutex> lk(mtx_);
     if (!started_ || state_.gameOver) return;
 
-    int oppIdx = (s->playerNum == 1) ? 1 : 0;
+    // Re-insert the player into their slot — removeClient nulled it on disconnect,
+    // which caused broadcastAll to skip them for all subsequent messages.
+    int idx = s->playerNum - 1;
+    players_[idx] = s;
+
+    int oppIdx = 1 - idx;
     if (players_[oppIdx] && players_[oppIdx]->fd >= 0)
         send(players_[oppIdx], Protocol::build({Protocol::MSG, s->name + " reconnected"}));
 
